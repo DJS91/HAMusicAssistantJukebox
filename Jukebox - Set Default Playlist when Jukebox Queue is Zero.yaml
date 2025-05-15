@@ -4,7 +4,7 @@ triggers:
   - trigger: state
     entity_id:
       - input_number.jukebox_queue_length
-    to: "0.0"
+    to: "1.0"
 conditions: []
 actions:
   - action: input_boolean.turn_off
@@ -12,10 +12,16 @@ actions:
     data: {}
     target:
       entity_id: input_boolean.jukebox_queue
+  - action: media_player.shuffle_set
+    metadata: {}
+    data:
+      shuffle: true
+    target:
+      entity_id: media_player.<YOUR MEDIA PLAYER HERE>
   - action: music_assistant.play_media
     metadata: {}
     data:
-      enqueue: play
+      enqueue: add
       media_id: <YOUR DEFAULT PARTY PLAYLIST HERE>
       media_type: playlist
     target:
