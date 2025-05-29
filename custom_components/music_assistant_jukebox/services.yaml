@@ -1,0 +1,15 @@
+create_access_token:
+  name: Create Access Token
+  description: Creates a new access token for the jukebox and saves it to file
+  target:
+    entity:
+      integration: music_assistant_jukebox
+      domain: switch
+
+delete_access_token:
+  name: Delete Access Token
+  description: Deletes the current access token and removes the token file
+  target:
+    entity:
+      integration: music_assistant_jukebox
+      domain: switch

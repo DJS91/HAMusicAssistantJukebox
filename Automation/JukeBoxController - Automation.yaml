@@ -1,0 +1,146 @@
+alias: JukeBox Controller
+description: >-
+  Keeps control of the jukebox
+
+
+  Instructions:
+
+  Before use remember to change the media_player in the first trigger 
+
+  and put the defined variable media_player to the same player
+
+  You should also update the default playlist variable to the playlist you want
+  to use
+
+
+  What the automation does
+
+
+  - Keeps the queue counter updated
+
+  - Stops the playback when Access is disabled
+
+  - Does something to the queue switch, but not sure what it is 
+    used for
+triggers:
+  - trigger: state
+    entity_id:
+      - media_player.tablet_stue
+    attribute: media_position_updated_at
+    id: Position Updated
+  - trigger: state
+    entity_id:
+      - switch.music_assistant_jukebox_jukebox_allow_access
+    from: "off"
+    to: "on"
+    id: Access enabled
+  - trigger: webhook
+    allowed_methods:
+      - POST
+      - PUT
+    local_only: true
+    webhook_id: "-notify_queue_of_song"
+    id: Webhook
+  - trigger: state
+    entity_id:
+      - number.music_assistant_jukebox_jukebox_queue_length
+    to: "0"
+    id: Playlist finished
+  - trigger: state
+    entity_id:
+      - switch.music_assistant_jukebox_jukebox_allow_access
+    from: "on"
+    to: "off"
+    id: Access disabled
+conditions: []
+actions:
+  - variables:
+      media_player: media_player.tablet_stue
+      default_playlist: Jukebox
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - Position Updated
+        sequence:
+          - action: music_assistant.get_queue
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.tablet_stue
+            response_variable: jukeboxqueuedetail
+          - variables:
+              speaker_data: "{{ jukeboxqueuedetail['media_player.tablet_stue'] }}"
+          - variables:
+              items_count: >-
+                {% set matches = speaker_data | regex_findall("'items': (\d+)")
+                %} {{ matches[0] if matches else 0 }}
+              current_index: >-
+                {% set matches = speaker_data | regex_findall("'current_index':
+                (\d+)") %} {{ matches[0] if matches else 0 }}
+              remaining: "{{ (items_count | int) - (current_index | int) }}"
+          - action: input_number.set_value
+            data:
+              value: "{{ remaining }}"
+            target:
+              entity_id: number.music_assistant_jukebox_jukebox_queue_length
+      - conditions:
+          - condition: trigger
+            id:
+              - Access enabled
+        sequence:
+          - action: switch.turn_off
+            metadata: {}
+            data: {}
+            target:
+              entity_id: switch.music_assistant_jukebox_jukebox_queue
+      - conditions:
+          - condition: trigger
+            id:
+              - Webhook
+        sequence:
+          - action: switch.turn_on
+            metadata: {}
+            data: {}
+            target:
+              entity_id: switch.music_assistant_jukebox_jukebox_queue
+      - conditions:
+          - condition: trigger
+            id:
+              - Playlist finished
+          - condition: state
+            entity_id: input_boolean.song_request_access
+            state: "on"
+        sequence:
+          - action: switch.turn_off
+            metadata: {}
+            data: {}
+            target:
+              entity_id: switch.music_assistant_jukebox_jukebox_queue
+          - action: music_assistant.play_media
+            metadata: {}
+            data:
+              enqueue: replace
+              media_id: "{{ default_playlist }}"
+              media_type: playlist
+            target:
+              entity_id: "{{ media_player }}"
+      - conditions:
+          - condition: trigger
+            id:
+              - Access disabled
+        sequence:
+          - action: media_player.media_stop
+            metadata: {}
+            data: {}
+            target:
+              entity_id: "{{ media_player }}"
+          - action: switch.turn_off
+            metadata: {}
+            data: {}
+            target:
+              entity_id:
+                - switch.music_assistant_jukebox_jukebox_allow_access
+                - switch.music_assistant_jukebox_jukebox_queue
+mode: queued
+max: 10

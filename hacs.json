@@ -1,0 +1,8 @@
+{
+    "name": "Music Assistant Jukebox",
+    "content_in_root": false,
+    "render_readme": true,
+    "homeassistant": "2025.2.4",
+    "hacs": "2.0.1",
+    "zip_release": false
+}

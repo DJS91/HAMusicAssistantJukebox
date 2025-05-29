@@ -1,0 +1,23 @@
+{
+    "config": {
+        "abort": {
+            "single_instance_allowed": "Already configured. Only a single instance is allowed."
+        },
+        "error": {
+            "invalid_media_player": "Invalid media player selected",
+            "no_media_players": "No media players found",
+            "no_music_assistant": "Music Assistant integration not found",
+            "unknown": "Unexpected error occurred"
+        },
+        "step": {
+            "user": {
+                "title": "Set up Music Assistant Jukebox",
+                "description": "Choose your media player and Music Assistant configuration",
+                "data": {
+                    "media_player": "Media Player",
+                    "music_assistant_id": "Music Assistant Configuration"
+                }
+            }
+        }
+    }
+}

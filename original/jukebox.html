@@ -12,7 +12,7 @@
     <script src="https://kit.fontawesome.com/e54d0c3ef1.js" crossorigin="anonymous"></script>
     <script>
         // Configuration - Replace with your actual API endpoints and tokens
-        const HAURL = 'http://<your HA IP here>.:8123'; // Your internal HA URL IP
+        const HAURL = 'http://<your HA IP here>:8123'; // Your internal HA URL IP
         let API_TOKEN = null // Will be set after loading
         const QUEUEWEBHOOK = 'your-webhook-id'; // required to coordinate Jukebox Queue mode.
         const MEDIA_PLAYER = "media_player.your_speaker"; // Your speaker entity to play the tuuuuuuunes
@@ -445,11 +445,11 @@
 
 
         // API Endpoints
-        const CHECK_API_ENDPOINT = HAURL+'/api/states/input_boolean.songrequestaccess';
+        const CHECK_API_ENDPOINT = HAURL+'/api/states/switch.songrequestaccess';
         const SEARCH_API_ENDPOINT = HAURL+'/api/services/music_assistant/search?return_response';
         const PLAY_API_ENDPOINT = HAURL+'/api/services/music_assistant/play_media';
         const NOTIFY_API_ENDPOINT = HAURL+'/api/webhook/'+QUEUEWEBHOOK;
-        const CHECK_QUEUE_MODE_ENDPOINT = HAURL+'/api/states/input_boolean.jukebox_queue';
+        const CHECK_QUEUE_MODE_ENDPOINT = HAURL+'/api/states/switch.jukebox_queue';
         
         function FocusOnInput() {
             var element = document.getElementById('searchInput');
