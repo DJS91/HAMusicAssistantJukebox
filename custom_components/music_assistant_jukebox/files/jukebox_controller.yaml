@@ -75,6 +75,23 @@ action:
           - service: switch.turn_off
             target:
               entity_id: switch.music_assistant_jukebox_jukebox_queue
+          - condition: not
+            conditions:
+              - condition: state
+                entity_id: !input media_player
+                state: "playing"
+          - service: media_player.shuffle_set
+            data:
+              shuffle: true
+            target:
+              entity_id: !input media_player
+          - service: music_assistant.play_media
+            target:
+              entity_id: !input media_player
+            data:
+              enqueue: replace
+              media_id: !input default_playlist
+              media_type: playlist
 
       - conditions:
           - condition: trigger
