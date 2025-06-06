@@ -1,310 +1,393 @@
-
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta name="theme-color" content="#1a1a1a"/>
+    <meta name="theme-color" content="#1a1a1a" />
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache">
     <meta http-equiv="Pragma" content="no-cache">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Song Search</title>
+    <title>Jukebox</title>
+    <link rel="icon" type="image/png" href="/local/jukebox/media/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/local/jukebox/media/favicon.svg" />
+    <link rel="shortcut icon" href="/local/jukebox/media/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/local/jukebox/media/apple-touch-icon.png" />
+    <link rel="manifest" href="/local/jukebox/media/site.webmanifest" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://kit.fontawesome.com/e54d0c3ef1.js" crossorigin="anonymous"></script>
     <script>
         // Configuration - Replace with your actual API endpoints and tokens
         const HAURL = window.location.protocol + '//' + window.location.host; // Gets current browser path
-        let API_TOKEN = null // Will be set after loading
-        const MEDIA_PLAYER = "media_player.your_speaker"; // Your speaker entity to play the tuuuuuuunes
+        let API_TOKEN = null; // Will be set after loading
+        const MEDIA_PLAYER = "media_player.your_speaker"; // Your speaker entity to play the music
         const MUSIC_ASSISTANT_CONFIG = "your_music_assistant_config_id"; // Your MA config ID
         let queueCheckInterval = null; // Interval for checking queue updates
- </script>
+
+        // Show/hide clear button and loader based on input and loading state
+        function updateSearchIcons(isLoading) {
+            const searchInput = document.getElementById('searchInput');
+            const clearButton = document.getElementById('clearSearch');
+            const loader = document.getElementById('searchLoader');
+
+            if (isLoading) {
+                loader.classList.add('active');
+                clearButton.classList.add('hide');
+            } else {
+                loader.classList.remove('active');
+                if (searchInput.value.trim()) {
+                    clearButton.classList.remove('hide');
+                } else {
+                    clearButton.classList.add('hide');
+                }
+            }
+        }
+
+        async function searchSongs() {
+            const placeholder = document.getElementById('placeholderImage');
+            const searchTerm = document.getElementById('searchInput').value.trim();
+            const searchbtn = document.getElementById('searchButton');
+            const loader = document.getElementById('searchLoader');
+
+            // Return early if search term is empty
+            if (!searchTerm) {
+                searchbtn.style.backgroundColor = '#cccccc';
+                searchbtn.style.borderColor = '#cccccc';
+                searchbtn.disabled = true;
+                setTimeout(() => {
+                    searchbtn.style.backgroundColor = '#246fe0';
+                    searchbtn.style.borderColor = '#373497';
+                    searchbtn.disabled = false;
+                }, 1000);
+                return;
+            }
+
+            updateSearchIcons(true); // Show loader, hide clear
+            try {
+                const searchRequest = {
+                    limit: "10",
+                    library_only: "false",
+                    config_entry_id: MUSIC_ASSISTANT_CONFIG,
+                    name: searchTerm,
+                };
+
+                const response = await fetch(SEARCH_API_ENDPOINT, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Authorization': `Bearer ${API_TOKEN}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(searchRequest)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                if (placeholder) {
+                    placeholder.style.display = 'none';
+                }
+                const data = await response.json();
+                const tracks = data.service_response.tracks;
+                displaySongs(tracks);
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while searching for songs');
+            } finally {
+                updateSearchIcons(false); // Hide loader, show clear if input not empty
+                searchbtn.textContent = 'Search';
+                searchbtn.disabled = false;
+                searchbtn.style.backgroundColor = '#246fe0';
+                searchbtn.style.borderColor = '#373497';
+            }
+        }
+    </script>
     <style>
-    
-    #placeholderImage:not([style*="display: none"]) ~ .results-table thead {
-        display: none;
-    }
-
-    #qrcode {
-        padding: 15px;
-        border-radius: 8px;
-        backdrop-filter: blur(5px);
-        color: #fff;
-    }
-    
-    #qrcode img {
-        display: block;
-        margin: 0 auto;
-    }
-
-    #page {
-        /*background: rgba(255, 255, 255, 0.98);*/
-        border-radius: 8px;
-        padding: 20px;
-        
-        backdrop-filter: blur(5px);
-        position: relative;
-    }
-    th{
-        color:#ddd
-    }
-
-    #page, #accessDenied {
-        visibility: hidden;
-        opacity: 0;
-        transition: opacity 0.3s ease-in-out;
-    }
-
-    body.loaded #page,
-    body.loaded #accessDenied {
-        visibility: visible;
-        opacity: 1;
-    }
-
-    #accessDenied {
-        display: none;
-        text-align: center;
-        padding: 20px;
-        color: #ffffff;
-        border-radius: 4px;
-        margin: 20px auto;
-        backdrop-filter: blur(10px);
-    }
-
-    body {
-        font-family: Arial, sans-serif;
-        max-width: 1000px;
-        margin: 20px auto;
-        padding: 0 20px;
-        box-sizing: border-box;
-        min-height: 100vh;
-        position: relative;
-        overflow-x: hidden;
-        --bg-image: url('bg.jpg');
-    }
-
-    body::before {
-        content: '';
-        position: fixed;
-        top: -20%;
-        left: -20%;
-        width: 150%;
-        height: 150%;
-        background-image: var(--bg-image);
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        filter: blur(60px) brightness(0.4);
-        z-index: -1;
-        transform: translate3d(0, 0, 0);
-        transition: background-image 1s ease-in-out;
-        will-change: background-image;
-        -webkit-backface-visibility: hidden;
-        backface-visibility: hidden;
-    }
-
-    /* Add this in the <style> section */
-    .loader {
-        display: none;
-        width: 30px;
-        height: 30px;
-        position: absolute;
-        right: 45px;
-        top: 40%;
-        transform: translateY(-50%);
-    }
-
-    .search-container {
-        margin-bottom: 20px;
-        display: flex;
-        flex-wrap: nowrap;
-        gap: 10px;
-        position: relative;
-        align-items: center;
-    }
-
-    .search-input-container {
-        position: relative;
-        flex: 1;
-        min-width: 0; /* Allow container to shrink */
-    }
-    
-    textarea:focus, input:focus{
-        outline: none;
-    }
-    
-    #searchInput {
-        width: 100%;
-        padding: 10px;
-        padding-right: 40px;
-        padding-left: 35px; /* Make room for the icon */
-        border-style: solid;
-        font-size: 16px;
-        color:white;
-        font-weight: 500;
-        box-sizing: border-box;
-        border-width: 0px 0px 2px 0px;
-        font-family: system-ui;
-        border-color: darkgrey;
-        background-color: rgb(198 197 197 / 10%);
-        padding-right: 70px;
-    }
-
-    #searchInput.loading {
-        background: url(http://www.xiconeditor.com/image/icons/loading.gif) no-repeat right center;
-    }
-
-    .clear-button {
-        display: none;
-        position: absolute;
-        right: 20px; /* Position it to the left of the loader */
-        top: 50%;
-        transform: translateY(-50%);
-        background: none;
-        border: none;
-        color: #666;
-        cursor: pointer;
-        padding: 0;
-        font-size: 14px;
-        z-index: 2;
-    }
-
-    .clear-button:hover {
-        color: #999;
-    }
-    
-    .results-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 20px;
-        text-align: center;
-        /*background: rgba(255, 255, 255, 0.95);*/
-        border-radius: 8px;
-        overflow: hidden;
-    }
-
-    .results-table tr {
-        margin-bottom: 20px;
-        display: table-row;
-        background-color: rgba(255, 255, 255, 0.05);
-    }
-
-    .results-table td {
-        padding: 20px;
-    }
-
-    .album-cover {
-        width: 100%;
-        max-width: 250px;
-        height: auto;
-        aspect-ratio: 1;
-        object-fit: cover;
-        border-radius: 4px;
-    }
-    
-    .placeholder-art {
-        width: 250px;
-        max-width: 250px;
-        margin-left: 20px;
-        aspect-ratio: 1;
-        background-color: rgba(255, 255, 255, 0.1);
-        border-radius: 4px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        color: #fff;
-        font-size: 1.1em;
-        text-align: center;
-    }
-
-    .placeholder-art i {
-        font-size: 3em;
-        margin-bottom: 10px;
-        opacity: 0.8;
-    }
-
-    #searchButton {
-        border: 1px solid #373497;
-        background-color: #246fe0;
-        color: white;
-        text-align: center;
-        border-radius: 4px;
-        padding: 10px;
-    }
-
-    .play-button {
-        margin-top: 10px;
-        background-color: #3d7393;
-        color: #ffffff;
-        text-align: center;
-        border:none;
-        padding: 10px;
-        font-family: system-ui;
-        transition: all 0.3s ease;
-        font-weight: 700;
-    }
-
-    /* Add new responsive styles */
-    @media screen and (max-width: 768px) {
-        body {
-            padding: 0 10px;
-        }
-
-        .results-table {
-            display: table;
-            overflow-x: auto;
-            text-align: center;
-        }
-
-        .results-table thead {
+        #placeholderImage:not([style*="display: none"])~.results-table thead {
             display: none;
         }
 
-        .results-table tbody tr {
-            display: flex;
-            flex-direction: column;
-            
-            padding-top: 10px;
+        #qrcode {
+            padding: 15px;
+            border-radius: 8px;
+            backdrop-filter: blur(5px);
+            color: #fff;
+        }
+
+        #qrcode img {
+            display: block;
+            margin: 0 auto;
+        }
+
+        #page {
+            /*background: rgba(255, 255, 255, 0.98);*/
+            border-radius: 8px;
+            padding: 20px;
+
+            backdrop-filter: blur(5px);
+            position: relative;
+        }
+
+        th {
+            color: #ddd
+        }
+
+        #page,
+        #accessDenied {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        body.loaded #page,
+        body.loaded #accessDenied {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        #accessDenied {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #ffffff;
+            border-radius: 4px;
+            margin: 20px auto;
+            backdrop-filter: blur(10px);
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 0 20px;
+            box-sizing: border-box;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+            --bg-image: url('media/bg.jpg');
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: -20%;
+            left: -20%;
+            width: 150%;
+            height: 150%;
+            background-image: var(--bg-image);
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            filter: blur(60px) brightness(0.4);
+            z-index: -1;
+            transform: translate3d(0, 0, 0);
+            transition: background-image 1s ease-in-out;
+            will-change: background-image;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+        }
+
+        .loader {
+            display: none;
+            width: 26px;
+            height: 26px;
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 2;
+            background: none;
+            pointer-events: none;
+        }
+
+        .loader.active {
+            display: block !important;
+        }
+
+        .search-container {
             margin-bottom: 20px;
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 25px;
+            /* increases the space between waveform and search bar */
+            position: relative;
+            align-items: center;
+        }
+
+        #waveform {
+            margin-right: 18px;
+            /* add extra space to the right of the waveform */
+        }
+
+        .search-input-container {
+            position: relative;
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            background: linear-gradient(90deg, rgba(36, 111, 224, 0.13) 0%, rgba(61, 115, 147, 0.10) 100%);
+            box-shadow: 0 4px 24px 0 rgba(36, 111, 224, 0.08);
+            border-radius: 30px;
+            padding: 2px 10px 2px 40px;
+            transition: box-shadow 0.3s, background 0.3s;
+        }
+
+        .search-input-container.focused {
+            box-shadow: 0 0 0 3px #246fe0, 0 4px 24px 0 rgba(36, 111, 224, 0.12);
+            background: linear-gradient(90deg, rgba(36, 111, 224, 0.18) 0%, rgba(61, 115, 147, 0.13) 100%);
+            transition: box-shadow 0.3s, background 0.3s;
+        }
+
+        .search-input-container .loader.active {
+            display: block !important;
+        }
+
+        .search-input-container .clear-button.hide {
+            display: none !important;
+        }
+
+        textarea:focus,
+        input:focus {
+            outline: none;
+        }
+
+        #searchInput {
+            width: 100%;
+            padding: 12px 48px 12px 12px;
+            /* right space for icons */
+            border: none;
+            font-size: 1.1em;
+            color: #fff;
+            background: transparent;
+            font-weight: 500;
+            border-radius: 30px;
+            transition: box-shadow 0.3s, background 0.3s;
+            box-shadow: none;
+        }
+
+        #searchInput:focus {
+            outline: none;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 18px;
+            color: #246fe0;
+            font-size: 1.2em;
+            pointer-events: none;
+            opacity: 0.8;
+            transition: color 0.3s;
+        }
+
+        .clear-button {
+            position: absolute;
+            right: 14px;
+            /* same position for both */
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 2;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            border: none;
+            color: #fff;
+            font-size: 1.1em;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .clear-button.hide {
+            display: none !important;
+        }
+
+        .clear-button:hover {
+            background: rgba(36, 111, 224, 0.25);
+            color: #fff;
+        }
+
+        .loader {
+            position: absolute;
+            right: 14px;
+            /* same position for both */
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 2;
+            display: none;
+            width: 26px;
+            height: 26px;
+            background: none;
+            pointer-events: none;
+        }
+
+        .loader.active {
+            display: block !important;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            text-align: center;
+            /*background: rgba(255, 255, 255, 0.95);*/
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .results-table tr {
+            margin-bottom: 20px;
+            display: table-row;
+            background-color: rgba(255, 255, 255, 0.05);
         }
 
         .results-table td {
-            display: block;
-            padding: 8px 0;
+            padding: 20px;
+        }
+
+        .results-table th {
+            text-align: center;
+            padding: 20px;
+            font-size: 1.1em;
+            font-weight: 700;
+            background: transparent;
             border: none;
         }
 
-        .results-table td:nth-child(2) {
-            display: flex;
-            flex-direction: column;  /* Force vertical stacking */
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-        }
-        .results-table td:nth-child(2) div {
-            width: 100%;
-            text-align: center;
-        }
-        .results-table td:nth-child(2)::before {
-            content: "";
-            font-weight: bold;
-            clear:both;
+        .results-table th:first-child {
+            width: 250px;
+            /* Match album cover max width */
         }
 
-        .results-table td:nth-child(3) {
-            /* display: none; */
-            width: 100%;
-            padding-top: 10px;
+        .results-table th:last-child {
+            width: 160px;
+            /* Match play button max width */
+        }
+
+        .results-table td:first-child {
+            width: 250px;
+        }
+
+        .results-table td:last-child {
+            width: 160px;
         }
 
         .album-cover {
+            width: 100%;
             max-width: 250px;
-            margin: 0 auto;
+            height: auto;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 4px;
         }
 
         .placeholder-art {
             width: 250px;
             max-width: 250px;
+            margin-left: 20px;
             aspect-ratio: 1;
             background-color: rgba(255, 255, 255, 0.1);
             border-radius: 4px;
@@ -315,188 +398,364 @@
             color: #fff;
             font-size: 1.1em;
             text-align: center;
-            margin: 0 auto;
         }
 
-        .play-button {
-           width: 100%;
-            margin-top: 10px;
-            background-color: #3d7393;
-            color: #ffffff;
-            text-align: center;
-            border:none;
-            padding: 10px;
-            font-family: system-ui;
-        }
-
-        
-    }
-
-    @media screen and (max-width: 480px) {
-        .search-container {
-            flex-direction: row;
-        }
-        .loader {
-            right: 10px; /* Adjust for mobile when search button stacks */
-        }
-        
-        #searchInput {
-            padding-right: 35px;
+        .placeholder-art i {
+            font-size: 3em;
+            margin-bottom: 10px;
+            opacity: 0.8;
         }
 
         #searchButton {
-            white-space: nowrap; /* Prevent button text from wrapping */
+            border: 1px solid #373497;
+            background-color: #246fe0;
+            color: white;
+            text-align: center;
+            border-radius: 4px;
+            padding: 10px;
         }
-    }
-    
-    h1,h2 {
-      font-weight: 700;
-      margin: 1em 0;
-      font-family: system-ui;
-      padding: 0.7em 0.7em;
-      font-size: 18px;
-      color: #fff;
-      border: solid 20px;
-      border-color: rgb(198 197 197 / 20%);
-    }
 
-    h1 { 
-        font-size: 3.5em; 
-    }
+        .play-button {
+            margin-top: 10px;
+            background-color: rgba(61, 115, 147, 0.35);
+            /* translucent */
+            color: #ffffff;
+            text-align: center;
+            border: none;
+            padding: 10px 22px;
+            font-family: system-ui;
+            transition: all 0.3s ease;
+            font-weight: 700;
+            border-radius: 30px !important;
+            /* very rounded */
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            backdrop-filter: blur(2px);
+            cursor: pointer;
+        }
 
-    h2 {
-      color: #e8e6e6;
-      font-size: 2em;
-    }
-    
-    :root {
-      --m: 17.5;
-      --wavefreq: calc(75ms * var(--m));
-    }
-    
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    
-    section {
-      display: flex;
-      gap: 3px;
-      height:13px;
-      width:20px;
-    }
-    
-    @keyframes waveform {
-      0% {
-        transform: scaleY(.5);
-      }
-      50% {
-        transform: scaleY(1.5);
-      }
-      100% {
-        transform: scaleY(.5);
-      }
-    }
-    
-    .search-container {
-        margin-bottom: 20px;
-        display: flex;
-        flex-wrap: nowrap;
-        gap: 25px;
-        position: relative;
-        align-items: center;
-    }
+        .play-button:disabled {
+            background-color: rgba(204, 204, 204, 0.25) !important;
+            color: #bbb !important;
+            cursor: not-allowed;
+        }
 
-    .wave-section {
-        display: flex;
-        gap: 3px;
-        height: 13px;
-        margin-right: 10px;
-        align-items: center; /* Add this */
-        cursor: pointer; /* Add this for better UX */
-    }
+        .play-button.success,
+        .play-button.success:disabled {
+            background-color: #4caf50 !important;
+            /* green */
+            color: #fff !important;
+        }
 
-    [class*='wave'] {
-        height: 13px; /* Explicit height instead of aspect-ratio */
-        width: 3px; /* Explicit width */
-        min-width: 3px; /* Add this */
-        flex-shrink: 0; /* Add this */
-        animation: waveform var(--wavefreq) ease-in-out infinite forwards;
-        background-color: white;
-        border-radius: 15px;
-        will-change: transform; /* Add this for better performance */
-        -webkit-transform: translateZ(0); /* Add this for iOS */
-        transform: translateZ(0); /* Add this for iOS */
-    }
+        .play-button.error,
+        .play-button.error:disabled {
+            background-color: #e53935 !important;
+            /* red */
+            color: #fff !important;
+        }
 
-    /* Add hover effect for better UX */
-    .wave-section:hover [class*='wave'] {
-        background-color: #ccc;
-    }
-    
-    .wave1 {
-      --wavefreq: calc(100ms * var(--m));
-    }
-    
-    .wave2 {
-      --wavefreq: calc(150ms * var(--m));
-    }
-    
-    .wave3 {
-      --wavefreq: calc(200ms * var(--m));
-    }
-    
-    .wave4 {
-      --wavefreq: calc(250ms * var(--m));
-    }
+        /* Add new responsive styles */
+        @media screen and (max-width: 768px) {
+            body {
+                padding: 0 10px;
+            }
 
-    .popup-overlay {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.7);
-        z-index: 1000;
-        backdrop-filter: blur(5px);
-    }
+            .results-table {
+                display: table;
+                overflow-x: auto;
+                text-align: center;
+            }
 
-    .popup-content {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background-color: rgb(74, 74, 74, 0.45);
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-        max-width: 400px;
-        width: 90%;
-        text-align: center;
-        color: white;
-    }
+            .results-table thead {
+                display: none;
+            }
 
-    .popup-close {
-        position: absolute;
-        right: 10px;
-        top: 10px;
-        background: none;
-        border: none;
-        color: #666;
-        font-size: 24px;
-        cursor: pointer;
-        padding: 5px;
-    }
+            .results-table tbody tr {
+                display: flex;
+                flex-direction: column;
+                border-radius: 12px;
+                padding-top: 10px;
+                margin-bottom: 20px;
+            }
 
-    .popup-close:hover {
-        color: #999;
-    }
-    
+            .results-table td {
+                display: block;
+                padding: 8px 0;
+                border: none;
+            }
 
+            .results-table td:nth-child(2) {
+                display: flex;
+                flex-direction: column;
+                /* Force vertical stacking */
+                align-items: center;
+                justify-content: center;
+                gap: 5px;
+            }
+
+            .results-table td:nth-child(2) div {
+                width: 100%;
+                text-align: center;
+            }
+
+            .results-table td:nth-child(2)::before {
+                content: "";
+                font-weight: bold;
+                clear: both;
+            }
+
+            .results-table td:nth-child(3) {
+                /* display: none; */
+                width: 100%;
+                padding-top: 10px;
+            }
+
+            .results-table td:first-child {
+                width: auto !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                padding: 0 !important;
+            }
+
+            .album-cover,
+            .placeholder-art {
+                margin: 0 auto !important;
+                display: block !important;
+                float: none !important;
+                max-width: 250px !important;
+                width: 100% !important;
+            }
+
+            .play-button {
+                width: auto;
+                /* Make button auto-width */
+                min-width: 90px;
+                /* Minimum width for readability */
+                max-width: 160px;
+                /* Prevent it from being too wide */
+                margin: 10px auto 0 auto;
+                /* Center horizontally */
+                display: block;
+                background-color: rgba(61, 115, 147, 0.35);
+                color: #ffffff;
+                text-align: center;
+                border: none;
+                padding: 10px 18px;
+                font-family: system-ui;
+                font-weight: 700;
+                border-radius: 30px !important;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+                backdrop-filter: blur(2px);
+                cursor: pointer;
+                transition: all 0.3s;
+                font-size: 1em;
+            }
+
+            .search-container {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .search-input-container {
+                padding-left: 38px;
+                padding-right: 8px;
+            }
+
+            #searchInput {
+                font-size: 1em;
+                padding: 10px 44px 10px 12px;
+                /* increase left padding as on desktop */
+            }
+
+            .clear-button,
+            .loader {
+                right: 10px;
+                width: 26px;
+                height: 26px;
+                font-size: 1em;
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+            .search-container {
+                flex-direction: row;
+            }
+
+            .loader {
+                right: 10px;
+                /* Adjust for mobile when search button stacks */
+            }
+
+            #searchInput {
+                padding-right: 35px;
+            }
+
+            #searchButton {
+                white-space: nowrap;
+                /* Prevent button text from wrapping */
+            }
+        }
+
+        h1,
+        h2 {
+            font-weight: 700;
+            margin: 1em 0;
+            font-family: system-ui;
+            padding: 0.7em 0.7em;
+            font-size: 18px;
+            color: #fff;
+            border: solid 20px;
+            border-color: rgb(198 197 197 / 20%);
+        }
+
+        h1 {
+            font-size: 3.5em;
+        }
+
+        h2 {
+            color: #e8e6e6;
+            font-size: 2em;
+        }
+
+        :root {
+            --m: 17.5;
+            --wavefreq: calc(75ms * var(--m));
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        section {
+            display: flex;
+            gap: 3px;
+            height: 13px;
+            width: 20px;
+        }
+
+        @keyframes waveform {
+            0% {
+                transform: scaleY(.5);
+            }
+
+            50% {
+                transform: scaleY(1.5);
+            }
+
+            100% {
+                transform: scaleY(.5);
+            }
+        }
+
+        .search-container {
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 25px;
+            position: relative;
+            align-items: center;
+        }
+
+        .wave-section {
+            display: flex;
+            gap: 3px;
+            height: 13px;
+            margin-right: 10px;
+            align-items: center;
+            /* Add this */
+            cursor: pointer;
+            /* Add this for better UX */
+        }
+
+        [class*='wave'] {
+            height: 13px;
+            /* Explicit height instead of aspect-ratio */
+            width: 3px;
+            /* Explicit width */
+            min-width: 3px;
+            /* Add this */
+            flex-shrink: 0;
+            /* Add this */
+            animation: waveform var(--wavefreq) ease-in-out infinite forwards;
+            background-color: white;
+            border-radius: 15px;
+            will-change: transform;
+            /* Add this for better performance */
+            -webkit-transform: translateZ(0);
+            /* Add this for iOS */
+            transform: translateZ(0);
+            /* Add this for iOS */
+        }
+
+        /* Add hover effect for better UX */
+        .wave-section:hover [class*='wave'] {
+            background-color: #ccc;
+        }
+
+        .wave1 {
+            --wavefreq: calc(100ms * var(--m));
+        }
+
+        .wave2 {
+            --wavefreq: calc(150ms * var(--m));
+        }
+
+        .wave3 {
+            --wavefreq: calc(200ms * var(--m));
+        }
+
+        .wave4 {
+            --wavefreq: calc(250ms * var(--m));
+
+        }
+
+        .popup-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
+        .popup-content {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgb(74, 74, 74, 0.45);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            color: white;
+        }
+
+        .popup-close {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .popup-close:hover {
+            color: #999;
+        }
     </style>
 </head>
+
 <body>
 
     <div class="popup-overlay" id="wavePopup">
@@ -515,7 +774,7 @@
     </div>
 
     <div id="page">
-       <div class="search-container">
+        <div class="search-container">
             <div id="waveform">
                 <section class="wave-section">
                     <div class="wave0"></div>
@@ -525,11 +784,11 @@
                     <div class="wave4"></div>
                 </section>
             </div>
-            <div style="position: relative; display: flex; align-items: center; flex: 1;">
-                <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 10px; color: #666;"></i>
-                <input type="text" id="searchInput" placeholder="Search song title..." autofocus style="padding-left: 35px;">
+            <div class="search-input-container">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="searchInput" placeholder="Search song title..." autofocus>
                 <button class="clear-button" id="clearSearch">
-                    <i style="font-size: large;" class="fa-solid fa-xmark"></i>
+                    <i class="fa-solid fa-xmark"></i>
                 </button>
                 <img src="https://i.gifer.com/6oa.gif" alt="Loading..." class="loader" id="searchLoader">
             </div>
@@ -538,11 +797,8 @@
         <div id="placeholderImage">
             <link href="https://fonts.googleapis.com/css?family=Raleway:200,100,400" rel="stylesheet" type="text/css" />
             <h1>
-              <span
-                 class="txt-rotate"
-                 data-period="1000"
-                 data-rotate='[ "Search.", "Queue.", "Party." ]'>
-              </span>
+                <span class="txt-rotate" data-period="1000" data-rotate='[ "Search.", "Queue.", "Party." ]'>
+                </span>
             </h1>
             <p style="margin-top: 10px; color: #666;"></p>
             <div id="qrcode" style="text-align: center; margin-top: 20px;"></div>
@@ -562,7 +818,7 @@
 
     <script>
 
-        
+
 
         async function getApiToken() {
             try {
@@ -577,7 +833,7 @@
                         'Expires': '0'
                     }
                 });
-                
+
                 if (!response.ok) {
                     throw new Error('Failed to load API token');
                 }
@@ -592,22 +848,41 @@
 
 
         // API Endpoints
-        const CHECK_API_ENDPOINT = HAURL+'/api/states/switch.music_assistant_jukebox_jukebox_allow_access';
-        const SEARCH_API_ENDPOINT = HAURL+'/api/services/music_assistant/search?return_response';
-        const GETQUEUE_API_ENDPOINT = HAURL+'/api/services/music_assistant/get_queue?return_response';
-        const PLAY_API_ENDPOINT = HAURL+'/api/services/music_assistant/play_media';
-        const NOTIFY_API_ENDPOINT = HAURL+'/api/events/song_queued';
-        const CHECK_QUEUE_MODE_ENDPOINT = HAURL+'/api/states/switch.music_assistant_jukebox_jukebox_queue';
-        
+        const CHECK_API_ENDPOINT = HAURL + '/api/states/switch.music_assistant_jukebox_jukebox_allow_access';
+        const SEARCH_API_ENDPOINT = HAURL + '/api/services/music_assistant/search?return_response';
+        const GETQUEUE_API_ENDPOINT = HAURL + '/api/services/music_assistant/get_queue?return_response';
+        const PLAY_API_ENDPOINT = HAURL + '/api/services/music_assistant/play_media';
+        const NOTIFY_API_ENDPOINT = HAURL + '/api/events/song_queued';
+        const CHECK_QUEUE_MODE_ENDPOINT = HAURL + '/api/states/switch.music_assistant_jukebox_jukebox_queue';
+
         function FocusOnInput() {
             var element = document.getElementById('searchInput');
             element.focus();
             setTimeout(function () { element.focus(); }, 2);
         }
-        
+
+        // Show/hide clear button and loader based on input and loading state
+        function updateSearchIcons(isLoading) {
+            const searchInput = document.getElementById('searchInput');
+            const clearButton = document.getElementById('clearSearch');
+            const loader = document.getElementById('searchLoader');
+
+            if (isLoading) {
+                loader.classList.add('active');
+                clearButton.classList.add('hide');
+            } else {
+                loader.classList.remove('active');
+                if (searchInput.value.trim()) {
+                    clearButton.classList.remove('hide');
+                } else {
+                    clearButton.classList.add('hide');
+                }
+            }
+        }
+
         // Initialize the app
         document.addEventListener('DOMContentLoaded', async () => {
-            
+
             API_TOKEN = await getApiToken();
 
             if (!API_TOKEN) {
@@ -624,15 +899,15 @@
 
             // Add loaded class to body to trigger fade in
             document.body.classList.add('loaded');
-    
+
 
             //const AppEnabled = await checkService();
             startServiceCheck();
 
             let searchTimeout;
-            
-            document.getElementById('searchInput').addEventListener('input', function(e) {
-                
+
+            document.getElementById('searchInput').addEventListener('input', function (e) {
+
                 clearTimeout(searchTimeout);
                 searchTimeout = setTimeout(() => {
                     searchSongs();
@@ -640,9 +915,7 @@
             });
 
             document.getElementById('searchButton').addEventListener('click', searchSongs);
-            document.getElementById('searchInput').addEventListener('keypress', function(e) {
-                const loader = document.getElementById('searchLoader');
-                loader.style.display = 'block'; // Show loader
+            document.getElementById('searchInput').addEventListener('keypress', function (e) {
                 const searchbtn = document.getElementById('searchButton');
                 searchbtn.textContent = 'Searching...';
                 searchbtn.style.backgroundColor = '#cccccc';
@@ -650,26 +923,30 @@
                 searchbtn.disabled = true;
                 if (e.key === 'Enter') {
                     clearTimeout(searchTimeout);
+                    updateSearchIcons(true); // Show loader, hide clear
                     searchSongs();
-                    
                 }
-            
             });
-            
+
             const searchInput = document.getElementById('searchInput');
             const clearButton = document.getElementById('clearSearch');
 
-            // Show/hide clear button based on input content
-            searchInput.addEventListener('input', function() {
-                clearButton.style.display = this.value ? 'block' : 'none';
+            searchInput.addEventListener('input', function () {
+                updateSearchIcons(false);
+                if (!searchInput.value.trim()) {
+                    // Show home/placeholder and clear results if input is empty
+                    const placeholder = document.getElementById('placeholderImage');
+                    if (placeholder) {
+                        placeholder.style.display = 'block';
+                    }
+                    document.getElementById('songResults').innerHTML = '';
+                }
             });
 
-            // Clear input when button is clicked
-            clearButton.addEventListener('click', function() {
+            clearButton.addEventListener('click', function () {
                 searchInput.value = '';
-                clearButton.style.display = 'none';
+                updateSearchIcons(false);
                 searchInput.focus();
-                
                 // Reset search results
                 const placeholder = document.getElementById('placeholderImage');
                 if (placeholder) {
@@ -677,6 +954,17 @@
                 }
                 document.getElementById('songResults').innerHTML = '';
             });
+
+            const searchInputContainer = document.querySelector('.search-input-container');
+            searchInput.addEventListener('focus', function () {
+                searchInputContainer.classList.add('focused');
+            });
+            searchInput.addEventListener('blur', function () {
+                searchInputContainer.classList.remove('focused');
+            });
+
+            // Ensure correct icon visibility on first load
+            updateSearchIcons(false);
         });
 
         async function getQueue() {
@@ -706,7 +994,7 @@
                 if (queueData && queueData.current_item) {
                     const currentTrackInfo = document.getElementById('currentTrackInfo');
                     const currentTrack = queueData.current_item;
-                    
+
                     const artistNames = currentTrack.media_item.artists
                         .map(artist => artist.name)
                         .join(', ');
@@ -715,14 +1003,14 @@
                     currentTrackInfo.innerHTML = `
                         <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
                             <div style="flex-shrink: 0;">
-                                ${currentTrack.media_item.image ? 
-                                    `<img src="${currentTrack.media_item.image}" 
+                                ${currentTrack.media_item.image ?
+                            `<img src="${currentTrack.media_item.image}" 
                                         alt="Album Art" 
                                         style="width: 80px; height: 80px; border-radius: 4px; object-fit: cover;">` :
-                                    `<div style="width: 80px; height: 80px; border-radius: 4px; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;">
+                            `<div style="width: 80px; height: 80px; border-radius: 4px; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;">
                                         <i class="fa-solid fa-music" style="font-size: 24px; color: #666;"></i>
                                     </div>`
-                                }
+                        }
                             </div>
                             <div style="flex-grow: 1; text-align: left;">
                                 <div style="margin-bottom: 5px;">
@@ -746,14 +1034,14 @@
                                 <div style="color: #999; font-size: 0.9em; margin-bottom: 10px;">Next up:</div>
                                 <div style="display: flex; align-items: center; gap: 15px;">
                                     <div style="flex-shrink: 0;">
-                                        ${nextTrack.media_item.image ? 
-                                            `<img src="${nextTrack.media_item.image}" 
+                                        ${nextTrack.media_item.image ?
+                                `<img src="${nextTrack.media_item.image}" 
                                                 alt="Next Album Art" 
                                                 style="width: 80px; height: 80px; border-radius: 4px; object-fit: cover;">` :
-                                            `<div style="width: 80px; height: 80px; border-radius: 4px; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;">
+                                `<div style="width: 80px; height: 80px; border-radius: 4px; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;">
                                                 <i class="fa-solid fa-music" style="font-size: 18px; color: #666;"></i>
                                             </div>`
-                                        }
+                            }
                                     </div>
                                     <div style="flex-grow: 1; text-align: left;">
                                         <div style="margin-bottom: 5px;">
@@ -804,12 +1092,7 @@
                 return;
             }
 
-            loader.style.display = 'block'; // Show loader
-            searchbtn.textContent = 'Searching...'; 
-            searchbtn.disabled = true;
-            searchbtn.style.backgroundColor = '#cccccc';
-            searchbtn.style.borderColor = '#cccccc';
-
+            updateSearchIcons(true); // Show loader, hide clear
             try {
 
                 const searchRequest = {
@@ -834,7 +1117,7 @@
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
                 }
-                
+
                 if (placeholder) {
                     placeholder.style.display = 'none';
                 }
@@ -846,12 +1129,12 @@
                 console.error('Error:', error);
                 alert('An error occurred while searching for songs');
             } finally {
-                loader.style.display = 'none'; // Hide loader
-                searchbtn.textContent = 'Search'; 
+                updateSearchIcons(false); // Hide loader, show clear if input not empty
+                searchbtn.textContent = 'Search';
                 searchbtn.disabled = false;
                 searchbtn.style.backgroundColor = '#246fe0';
                 searchbtn.style.borderColor = '#373497';
-                
+
             }
         }
 
@@ -873,7 +1156,7 @@
             // Preload the background image
             if (tracks[0] && tracks[0].image) {
                 const img = new Image();
-                img.onload = function() {
+                img.onload = function () {
                     // Update background only after image is loaded
                     document.body.style.setProperty('--bg-image', `url('${tracks[0].image}')`);
                 };
@@ -883,7 +1166,7 @@
             // Display each track in a row
             tracks.forEach(track => {
                 const row = songResults.insertRow();
-                
+
                 // Album cover cell
                 const coverCell = row.insertCell();
                 if (track.image) {
@@ -892,7 +1175,6 @@
                     coverImg.alt = 'Album Cover';
                     coverImg.className = 'album-cover';
                     coverCell.appendChild(coverImg);
-                    
                 } else {
                     const placeholderDiv = document.createElement('div');
                     placeholderDiv.className = 'placeholder-art';
@@ -917,7 +1199,7 @@
                 artistDiv.textContent = track.artists.map(artist => artist.name).join(', ');
                 artistDiv.style.color = '#afaeae';
                 artistDiv.style.fontSize = '0.9em';
-                
+
                 detailsCell.appendChild(trackDiv);
                 detailsCell.appendChild(artistDiv);
 
@@ -931,7 +1213,7 @@
             });
 
         }
-        
+
         async function checkQueueMode() {
             try {
 
@@ -961,7 +1243,7 @@
         async function playSong(track, playButton) {
             try {
                 const queueMode = await checkQueueMode();
-                
+
                 const playRequest = {
                     enqueue: queueMode,
                     media_id: track.uri,
@@ -983,20 +1265,30 @@
                     throw new Error('Network response was not ok');
                 }
 
-                    // Update button state after successful request
-                    playButton.textContent = 'Queued';
-                    playButton.disabled = true;
+                // Success: turn green for 1s, then disabled gray
+                playButton.innerHTML = "<i class='fa-solid fa-check'></i> Queued";
+                playButton.classList.add('success');
+                playButton.disabled = true;
+                setTimeout(() => {
+                    playButton.style.backgroundColor = 'rgba(204, 204, 204, 0.2)';
                     playButton.style.color = 'grey';
-                    playButton.style.backgroundColor = 'rgb(204, 204, 204, 0.2)';
-                    playButton.style.borderColor = 'rgb(204, 204, 204, 0.2)';  // Optional: visual feedback for disabled state
+                }, 1000);
 
                 // Handle successful play request
                 console.log('Playing song:', track.name);
                 notifySong(track);
 
             } catch (error) {
+                // Error: turn red for 1s, then disabled gray
+                playButton.innerHTML = "<i class='fa-solid fa-xmark'></i> Error";
+                playButton.classList.add('error');
+                playButton.disabled = true;
+                setTimeout(() => {
+                    playButton.style.backgroundColor = 'rgba(204, 204, 204, 0.2)';
+                    playButton.style.color = 'grey';
+                }, 1000);
+
                 console.error('Error playing song:', error);
-                alert('An error occurred while trying to play the song');
             }
         }
 
@@ -1012,7 +1304,7 @@
                 const response = await fetch(NOTIFY_API_ENDPOINT, {
                     method: 'POST',
                     credentials: "same-origin",
-                     headers: {
+                    headers: {
                         'Authorization': `Bearer ${API_TOKEN}`,
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
@@ -1029,13 +1321,13 @@
                 alert('An error occurred while trying to notify the song');
             }
         }
-        
+
         function startServiceCheck() {
             let checkInterval;
 
             // First verify token before starting checks
             const verifyAndStartChecks = async () => {
-                
+
                 const token = await getApiToken();
                 if (!token) {
                     console.error('No valid API token found');
@@ -1048,7 +1340,7 @@
                     return;
                 }
 
-                
+
                 checkService().catch(error => {
                     if (error.status === 401) {
                         console.error('Authentication failed, stopping service checks');
@@ -1063,7 +1355,7 @@
                         `;
                     }
                 });
-                
+
                 // Then check every 10 seconds
                 checkInterval = setInterval(async () => {
                     try {
@@ -1072,7 +1364,7 @@
                         if (!currentToken) {
                             throw { status: 401, message: 'No valid API token' };
                         }
-                        
+
                         const isEnabled = await checkService();
                         const pageElement = document.getElementById('page');
                         const accessDeniedElement = document.getElementById('accessDenied');
@@ -1149,46 +1441,46 @@
                 throw error; // Re-throw to handle in startServiceCheck
             }
         }
-    
-        var TxtRotate = function(el, toRotate, period) {
-          this.toRotate = toRotate;
-          this.el = el;
-          this.loopNum = 0;
-          this.period = parseInt(period, 10) || 2000;
-          this.txt = '';
-          this.tick();
-          this.isDeleting = false;
-        };
-        
-        TxtRotate.prototype.tick = function() {
-          var i = this.loopNum % this.toRotate.length;
-          var fullTxt = this.toRotate[i];
-        
-          if (this.isDeleting) {
-            this.txt = fullTxt.substring(0, this.txt.length - 1);
-          } else {
-            this.txt = fullTxt.substring(0, this.txt.length + 1);
-          }
-        
-          this.el.innerHTML = '<span class="wrap">'+this.txt+'</span>';
-        
-          var that = this;
-          var delta = 200 - Math.random() * 100;
-        
-          if (this.isDeleting) { delta /= 2; }
-        
-          if (!this.isDeleting && this.txt === fullTxt) {
-            delta = this.period;
-            this.isDeleting = true;
-          } else if (this.isDeleting && this.txt === '') {
+
+        var TxtRotate = function (el, toRotate, period) {
+            this.toRotate = toRotate;
+            this.el = el;
+            this.loopNum = 0;
+            this.period = parseInt(period, 10) || 2000;
+            this.txt = '';
+            this.tick();
             this.isDeleting = false;
-            this.loopNum++;
-            delta = 500;
-          }
-        
-          setTimeout(function() {
-            that.tick();
-          }, delta);
+        };
+
+        TxtRotate.prototype.tick = function () {
+            var i = this.loopNum % this.toRotate.length;
+            var fullTxt = this.toRotate[i];
+
+            if (this.isDeleting) {
+                this.txt = fullTxt.substring(0, this.txt.length - 1);
+            } else {
+                this.txt = fullTxt.substring(0, this.txt.length + 1);
+            }
+
+            this.el.innerHTML = '<span class="wrap">' + this.txt + '</span>';
+
+            var that = this;
+            var delta = 200 - Math.random() * 100;
+
+            if (this.isDeleting) { delta /= 2; }
+
+            if (!this.isDeleting && this.txt === fullTxt) {
+                delta = this.period;
+                this.isDeleting = true;
+            } else if (this.isDeleting && this.txt === '') {
+                this.isDeleting = false;
+                this.loopNum++;
+                delta = 500;
+            }
+
+            setTimeout(function () {
+                that.tick();
+            }, delta);
         };
 
         function generateQRCode() {
@@ -1216,26 +1508,26 @@
             label.textContent = 'Share and join the jukebox!';
             qrContainer.appendChild(label);
         }
-        
-        window.onload = function() {
-          var elements = document.getElementsByClassName('txt-rotate');
-          for (var i=0; i<elements.length; i++) {
-            var toRotate = elements[i].getAttribute('data-rotate');
-            var period = elements[i].getAttribute('data-period');
-            if (toRotate) {
-              new TxtRotate(elements[i], JSON.parse(toRotate), period);
+
+        window.onload = function () {
+            var elements = document.getElementsByClassName('txt-rotate');
+            for (var i = 0; i < elements.length; i++) {
+                var toRotate = elements[i].getAttribute('data-rotate');
+                var period = elements[i].getAttribute('data-period');
+                if (toRotate) {
+                    new TxtRotate(elements[i], JSON.parse(toRotate), period);
+                }
             }
-          }
-          // INJECT CSS
-          var css = document.createElement("style");
-          css.type = "text/css";
-          css.innerHTML = ".txt-rotate > .wrap { border-right: 0.08em solid #666 }";
-          document.body.appendChild(css);
-        
-          // Generate QR code
-          generateQRCode();
+            // INJECT CSS
+            var css = document.createElement("style");
+            css.type = "text/css";
+            css.innerHTML = ".txt-rotate > .wrap { border-right: 0.08em solid #666 }";
+            document.body.appendChild(css);
+
+            // Generate QR code
+            generateQRCode();
         };
-        
+
         FocusOnInput();
         document.getElementById("searchInput").focus();
 
@@ -1258,19 +1550,19 @@
         }
 
         // Update the wave-section click event listener
-        document.querySelector('#waveform').addEventListener('click', function() {
+        document.querySelector('#waveform').addEventListener('click', function () {
             openPopup();
         });
 
         // Update the outside click handler
-        document.getElementById('wavePopup').addEventListener('click', function(e) {
+        document.getElementById('wavePopup').addEventListener('click', function (e) {
             if (e.target === this) {
                 closePopup();
             }
         });
 
         // Update the ESC key handler
-        document.addEventListener('keydown', function(e) {
+        document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 closePopup();
             }
