@@ -116,9 +116,6 @@ action:
           - condition: trigger
             id: Access disabled
         sequence:
-          - service: media_player.media_stop
-            target:
-              entity_id: !input media_player
           - service: switch.turn_off
             target:
               entity_id:
