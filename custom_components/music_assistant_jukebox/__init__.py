@@ -20,8 +20,7 @@ from .const import (
     HTML_FILE,
     BLUEPRINT_FILE,
     CONF_MEDIA_PLAYER,
-    CONF_MUSIC_ASSISTANT_ID,
-    BG_FILE
+    CONF_MUSIC_ASSISTANT_ID
 )
 PLATFORMS: list[Platform] = [Platform.SWITCH, Platform.NUMBER, Platform.IMAGE]
 
@@ -106,7 +105,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         
         # Define files to copy including blueprint
         files_to_copy = {
-            "bg.jpg": BG_FILE,
             "jukebox.html": HTML_FILE,
             "jukebox_controller.yaml": BLUEPRINT_FILE
         }
@@ -124,7 +122,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             else:
                 LOGGER.error("Source file %s not found", src_file)
 
-        # Update jukebox.html with correct valuesMore actions
+        # Copy media folder if it exists
+        media_src = original_path / "media"
+        media_dst = www_path / "media"
+        if media_src.exists() and media_src.is_dir():
+            if media_dst.exists():
+                shutil.rmtree(media_dst)
+            shutil.copytree(media_src, media_dst)
+            LOGGER.info("Copied media folder to %s", media_dst)
+
+        # Update jukebox.html with correct values
         html_file = Path(hass.config.path(HTML_FILE))
         if html_file.exists():
             async with aiofiles.open(html_file, mode='r') as file:

@@ -21,8 +21,6 @@ from .const import (
     LOGGER,
     WWW_JUKEBOX_DIR,
     TOKEN_FILE,
-    HTML_FILE,
-    BLUEPRINT_FILE
 )
 
 async def async_setup_entry(
