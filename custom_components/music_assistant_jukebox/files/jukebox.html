@@ -22,7 +22,7 @@
         const MEDIA_PLAYER = "media_player.your_speaker"; // Your speaker entity to play the music
         const MUSIC_ASSISTANT_CONFIG = "your_music_assistant_config_id"; // Your MA config ID
         let queueCheckInterval = null; // Interval for checking queue updates
-        let lastQueueTime = 0;
+        let lastQueueTime = window.localStorage.getItem("lastQueueTime") ?? 0;
         let queueDelaySeconds = 0;
     </script>
    <style>
@@ -1267,6 +1267,7 @@
 
                 // Update last queue time
                 lastQueueTime = currentTime;
+                window.localStorage.setItem("lastQueueTime", lastQueueTime);
 
                 // Success: turn green for 1s, then disabled gray
                 playButton.innerHTML = "<i class='fa-solid fa-check'></i> Queued";
