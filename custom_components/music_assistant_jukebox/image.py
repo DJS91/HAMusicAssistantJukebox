@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import mimetypes
 from datetime import datetime
 
 from homeassistant.components.image import ImageEntity
@@ -39,76 +38,66 @@ class JukeboxBaseMixin:
             configuration_url="http://homeassistant.local:8123/local/jukebox/jukebox.html"
         )
 
-class JukeboxInternalQRCode(JukeboxBaseMixin, ImageEntity):
+class JukeboxQRBase(JukeboxBaseMixin, ImageEntity):
+    """Base class for Jukebox QR codes to avoid duplication."""
+
+    _attr_has_entity_name = True
+    _attr_content_type = "image/png"
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, name: str, unique_id: str, file_name: str) -> None:
+        """Initialize the image entity."""
+        super().__init__(hass)
+        self.hass = hass
+        self.entry = entry
+        self._attr_name = name
+        self._attr_unique_id = f"{DOMAIN}_{unique_id}"
+        self._image_path = hass.config.path(f"www/jukebox/{file_name}")
+        self._attr_entity_picture = f"/local/jukebox/{file_name}"
+        self._image: bytes | None = None
+
+    async def async_image(self) -> bytes | None:
+        """Return bytes of image by loading it via the executor."""
+        return await self.hass.async_add_executor_job(self._load_image_sync)
+
+    def _load_image_sync(self) -> bytes | None:
+        """Load the image from disk (runs in executor)."""
+        if not os.path.exists(self._image_path):
+            self._attr_available = False
+            return None
+
+        try:
+            self._attr_available = True
+            self._attr_image_last_updated = datetime.fromtimestamp(os.path.getmtime(self._image_path))
+            with open(self._image_path, "rb") as image_file:
+                return image_file.read()
+        except Exception as err:
+            LOGGER.error("Error reading QR image %s: %s", self._image_path, err)
+            self._attr_available = False
+            return None
+
+class JukeboxInternalQRCode(JukeboxQRBase):
     """Representation of the Jukebox Internal QR Code."""
     
-    _attr_has_entity_name = True
-    _attr_name = "Internal Access QR Code"
-    _attr_unique_id = f"{DOMAIN}_internal_qr"
-    
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
-        """Initialize the image entity."""
-        self.hass = hass  # Set hass before calling super().__init__()
-        self.entry = entry
-        super().__init__(hass)
-        self._attr_content_type = "image/png"
-        self._image_path = hass.config.path("www/jukebox/internal_url_qr.png")
-        self._attr_entity_picture = "/local/jukebox/internal_url_qr.png"
-        self._load_image()
+        """Initialize the internal QR entity."""
+        super().__init__(
+            hass, 
+            entry, 
+            "Internal Access QR Code", 
+            "internal_qr", 
+            "internal_url_qr.png"
+        )
 
-    def _load_image(self) -> None:
-        """Load the image and set attributes."""
-        if os.path.exists(self._image_path):
-            self._attr_available = True
-            self._attr_image_last_updated = datetime.fromtimestamp(os.path.getmtime(self._image_path))
-            with open(self._image_path, "rb") as image_file:
-                self._image = image_file.read()
-        else:
-            self._attr_available = False
-            self._image = None
-
-    async def async_image(self) -> bytes | None:
-        """Return bytes of image."""
-        return self._image
-
-    @property
-    def state(self) -> str:
-        """Return state of image."""
-        return "available" if self._attr_available else "unavailable"
-
-class JukeboxExternalQRCode(JukeboxBaseMixin, ImageEntity):
+class JukeboxExternalQRCode(JukeboxQRBase):
     """Representation of the Jukebox External QR Code."""
     
-    _attr_has_entity_name = True
-    _attr_name = "External Access QR Code"
-    _attr_unique_id = f"{DOMAIN}_external_qr"
-    
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
-        """Initialize the image entity."""
-        self.hass = hass  # Set hass before calling super().__init__()
-        self.entry = entry
-        super().__init__(hass)
-        self._attr_content_type = "image/png"
-        self._image_path = hass.config.path("www/jukebox/external_url_qr.png")
-        self._attr_entity_picture = "/local/jukebox/external_url_qr.png"
-        self._load_image()
+        """Initialize the external QR entity."""
+        super().__init__(
+            hass, 
+            entry, 
+            "External Access QR Code", 
+            "external_qr", 
+            "external_url_qr.png"
+        )
 
-    def _load_image(self) -> None:
-        """Load the image and set attributes."""
-        if os.path.exists(self._image_path):
-            self._attr_available = True
-            self._attr_image_last_updated = datetime.fromtimestamp(os.path.getmtime(self._image_path))
-            with open(self._image_path, "rb") as image_file:
-                self._image = image_file.read()
-        else:
-            self._attr_available = False
-            self._image = None
-
-    async def async_image(self) -> bytes | None:
-        """Return bytes of image."""
-        return self._image
-
-    @property
-    def state(self) -> str:
-        """Return state of image."""
-        return "available" if self._attr_available else "unavailable"  
