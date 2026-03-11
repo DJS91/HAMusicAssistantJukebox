@@ -1,4 +1,4 @@
-# <img src="logo.png" width="25" height="25"> Music Assistant Jukebox Integration (Depricated)
+# <img src="logo.png" width="25" height="25"> Music Assistant Jukebox Integration (Deprecated)
 
 ## Notice: this integration is not longer activly being maintained.
 
