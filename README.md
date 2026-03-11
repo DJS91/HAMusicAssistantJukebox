@@ -1,4 +1,7 @@
-# <img src="logo.png" width="25" height="25"> Music Assistant Jukebox Integration
+# <img src="logo.png" width="25" height="25"> Music Assistant Jukebox Integration (Depricated)
+
+## Note. This integration is not longer activly being maintained. Music Assistant now has a Plugin that should be used instead and offers much of the same features.
+See https://beta.music-assistant.io/plugins/party-mode/
 
 A Home Assistant integration that provides a web-based song request system that integrates with Music Assistant to create an interactive jukebox experience for guests!
 
